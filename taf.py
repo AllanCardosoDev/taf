@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import numpy as np
 
 # ── Configuração da página ────────────────────────────────────────────────────
@@ -47,10 +46,15 @@ st.markdown("""
 # ── Carregamento e preparação dos dados ──────────────────────────────────────
 @st.cache_data
 def carregar_dados():
-    # Lê direto do Excel (table.xlsx na raiz do repositório)
-    df = pd.read_excel("table.xlsx", engine="openpyxl")
+    # Lê o Excel com decimal brasileiro (vírgula) e todas as colunas como texto
+    df = pd.read_excel(
+        "table.xlsx",
+        engine="openpyxl",
+        dtype=str,          # tudo como texto para evitar erros de tipo
+        decimal=",",
+    )
 
-    # Padroniza nomes de colunas (remove espaços e caracteres especiais)
+    # Limpa nomes das colunas
     df.columns = (
         df.columns
         .str.strip()
@@ -62,52 +66,64 @@ def carregar_dados():
         .str.decode("ascii")
     )
 
-    # Mapeia para os nomes esperados pelo restante do código
-    col_map = {
-        "ORD":             "ORD",
-        "NOME":            "NOME",
-        "CORRIDA_12MIN":   "CORRIDA_12MIN",
-        "NOTA_CORRIDA":    "NOTA_CORRIDA",
-        "ABDOMINAL":       "ABDOMINAL",
-        "NOTA_ABDOMINAL":  "NOTA_ABDOMINAL",
-        "FLEXAO_BRACOS":   "FLEXAO_BRACOS",
-        "NOTA_FLEXAO":     "NOTA_FLEXAO",
-        "NATACAO_50M":     "NATACAO_50M",
-        "NOTA_NATACAO":    "NOTA_NATACAO",
-        "BARRA":           "BARRA",
-        "NOTA_BARRA":      "NOTA_BARRA",
-        "MEDIA_FINAL":     "MEDIA_FINAL",
+    # Mapeia nomes de colunas (tolerante a variações de nome)
+    esperados = {
+        "ORD":            "ORD",
+        "NOME":           "NOME",
+        "CORRIDA":        "CORRIDA_12MIN",
+        "12MIN":          "CORRIDA_12MIN",
+        "NOTA_CORRIDA":   "NOTA_CORRIDA",
+        "ABDOMINAL":      "ABDOMINAL",
+        "NOTA_ABDOMINAL": "NOTA_ABDOMINAL",
+        "FLEXAO":         "FLEXAO_BRACOS",
+        "NOTA_FLEXAO":    "NOTA_FLEXAO",
+        "NATACAO":        "NATACAO_50M",
+        "NOTA_NATACAO":   "NOTA_NATACAO",
+        "BARRA":          "BARRA",
+        "NOTA_BARRA":     "NOTA_BARRA",
+        "MEDIA":          "MEDIA_FINAL",
+        "FINAL":          "MEDIA_FINAL",
     }
-
-    # Tenta renomear automaticamente se as colunas tiverem nomes ligeiramente diferentes
     rename = {}
     for col in df.columns:
-        for expected in col_map:
-            if expected in col:
-                rename[col] = col_map[expected]
+        for chave, destino in esperados.items():
+            if chave in col and destino not in rename.values():
+                rename[col] = destino
                 break
     df = df.rename(columns=rename)
 
-    # Remove linhas sem média final (ex: ausentes)
+    # Converte vírgula → ponto e força numérico
+    colunas_num = [
+        "CORRIDA_12MIN", "NOTA_CORRIDA",
+        "ABDOMINAL",     "NOTA_ABDOMINAL",
+        "FLEXAO_BRACOS", "NOTA_FLEXAO",
+        "NOTA_NATACAO",  "NOTA_BARRA",
+        "MEDIA_FINAL",
+    ]
+    for col in colunas_num:
+        if col in df.columns:
+            df[col] = (
+                df[col]
+                .astype(str)
+                .str.replace(",", ".", regex=False)
+                .str.strip()
+                .replace("nan", np.nan)
+                .replace("",    np.nan)
+            )
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    # Remove ausentes (sem média)
     df = df[df["MEDIA_FINAL"].notna() & (df["MEDIA_FINAL"] > 0)].reset_index(drop=True)
 
-    # Garante tipos numéricos
-    for c in ["CORRIDA_12MIN", "NOTA_CORRIDA", "ABDOMINAL", "NOTA_ABDOMINAL",
-              "FLEXAO_BRACOS", "NOTA_FLEXAO", "NOTA_NATACAO",
-              "NOTA_BARRA", "MEDIA_FINAL"]:
-        if c in df.columns:
-            df[c] = pd.to_numeric(df[c], errors="coerce")
-
-    # Classificação de desempenho
-    def classificar(media):
-        if media >= 9.5:  return "Excelente"
-        elif media >= 8.5: return "Bom"
-        elif media >= 7.0: return "Regular"
-        else:              return "Atenção"
+    # Classificação
+    def classificar(m):
+        if m >= 9.5:   return "Excelente"
+        elif m >= 8.5: return "Bom"
+        elif m >= 7.0: return "Regular"
+        else:          return "Atenção"
 
     df["CLASSIFICACAO"] = df["MEDIA_FINAL"].apply(classificar)
 
-    # Ponto fraco por aluno
     notas = {
         "Corrida 12min":    "NOTA_CORRIDA",
         "Abdominal":        "NOTA_ABDOMINAL",
@@ -117,8 +133,8 @@ def carregar_dados():
     }
 
     def ponto_fraco(row):
-        menores = {k: row[v] for k, v in notas.items() if v in row.index}
-        return min(menores, key=menores.get)
+        vals = {k: row[v] for k, v in notas.items() if v in row.index and pd.notna(row[v])}
+        return min(vals, key=vals.get) if vals else "—"
 
     df["PONTO_FRACO"] = df.apply(ponto_fraco, axis=1)
     return df, notas
@@ -127,6 +143,12 @@ def carregar_dados():
 df, notas = carregar_dados()
 colunas_nota = list(notas.values())
 labels_nota  = list(notas.keys())
+cor_map = {
+    "Excelente": "#22c55e",
+    "Bom":       "#3b82f6",
+    "Regular":   "#f59e0b",
+    "Atenção":   "#ef4444",
+}
 
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
@@ -178,7 +200,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown("""
-> **Por que analisar dados do TAF?**  
+> **Por que analisar dados do TAF?**
 > O acompanhamento sistemático do desempenho físico dos militares permite identificar
 > pontos críticos de melhoria individual e coletiva, orientar treinamentos direcionados,
 > prevenir afastamentos por lesão e elevar o nível operacional da corporação.
@@ -188,7 +210,7 @@ st.markdown("""
 st.divider()
 
 
-# ── KPIs principais ───────────────────────────────────────────────────────────
+# ── KPIs ──────────────────────────────────────────────────────────────────────
 st.markdown('<p class="section-title">📊 Visão Geral do Pelotão</p>', unsafe_allow_html=True)
 
 k1, k2, k3, k4, k5, k6 = st.columns(6)
@@ -199,20 +221,18 @@ pior        = df_f.loc[df_f["MEDIA_FINAL"].idxmin()]
 excelentes  = len(df_f[df_f["CLASSIFICACAO"] == "Excelente"])
 atencao     = len(df_f[df_f["CLASSIFICACAO"] == "Atenção"])
 
-k1.metric("👥 Militares avaliados", len(df_f))
-k2.metric("📈 Média geral", f"{media_geral:.2f}")
-k3.metric("🥇 Maior média", f"{melhor['MEDIA_FINAL']:.1f}", melhor["NOME"].split()[0])
-k4.metric("⚠️ Menor média",  f"{pior['MEDIA_FINAL']:.1f}",  pior["NOME"].split()[0])
+k1.metric("👥 Avaliados",          len(df_f))
+k2.metric("📈 Média geral",        f"{media_geral:.2f}")
+k3.metric("🥇 Maior média",        f"{melhor['MEDIA_FINAL']:.1f}", melhor["NOME"].split()[0])
+k4.metric("⚠️ Menor média",        f"{pior['MEDIA_FINAL']:.1f}",   pior["NOME"].split()[0])
 k5.metric("✅ Excelentes (≥ 9,5)", excelentes)
-k6.metric("🚨 Atenção (< 7,0)", atencao)
+k6.metric("🚨 Atenção (< 7,0)",    atencao)
 
 st.divider()
 
 
 # ── Ranking ───────────────────────────────────────────────────────────────────
 st.markdown('<p class="section-title">🏆 Ranking de Desempenho — Média Final</p>', unsafe_allow_html=True)
-
-cor_map = {"Excelente": "#22c55e", "Bom": "#3b82f6", "Regular": "#f59e0b", "Atenção": "#ef4444"}
 
 df_rank = df_f.sort_values("MEDIA_FINAL", ascending=True).copy()
 df_rank["NOME_CURTO"] = df_rank["NOME"].apply(lambda x: " ".join(str(x).split()[:2]))
@@ -245,7 +265,9 @@ with col_a:
     contagem = df_f["CLASSIFICACAO"].value_counts().reset_index()
     contagem.columns = ["Classificação", "Quantidade"]
     ordem = ["Excelente", "Bom", "Regular", "Atenção"]
-    contagem["Classificação"] = pd.Categorical(contagem["Classificação"], categories=ordem, ordered=True)
+    contagem["Classificação"] = pd.Categorical(
+        contagem["Classificação"], categories=ordem, ordered=True
+    )
     contagem = contagem.sort_values("Classificação")
 
     fig_pie = px.pie(
@@ -285,8 +307,10 @@ with col_b:
 st.markdown('<p class="section-title">💪 Desempenho Médio por Disciplina</p>', unsafe_allow_html=True)
 
 medias_disc = {label: df_f[col].mean() for label, col in zip(labels_nota, colunas_nota)}
-df_disc = pd.DataFrame({"Disciplina": list(medias_disc.keys()), "Média": list(medias_disc.values())})
-df_disc = df_disc.sort_values("Média")
+df_disc = pd.DataFrame({
+    "Disciplina": list(medias_disc.keys()),
+    "Média":      list(medias_disc.values()),
+}).sort_values("Média")
 
 fig_disc = px.bar(
     df_disc, x="Média", y="Disciplina", orientation="h", text="Média",
@@ -335,8 +359,11 @@ fig_radar.add_trace(go.Scatterpolar(
 fig_radar.update_layout(
     polar=dict(
         bgcolor="rgba(0,0,0,0)",
-        radialaxis=dict(visible=True, range=[0, 10],
-                        gridcolor="rgba(255,255,255,.12)", tickfont_color="#94a3b8"),
+        radialaxis=dict(
+            visible=True, range=[0, 10],
+            gridcolor="rgba(255,255,255,.12)",
+            tickfont_color="#94a3b8",
+        ),
         angularaxis=dict(gridcolor="rgba(255,255,255,.12)"),
     ),
     paper_bgcolor="rgba(0,0,0,0)", font_color="#e7eefc",
@@ -355,14 +382,19 @@ df_heat = df_f[["NOME"] + colunas_nota].copy()
 df_heat["NOME_CURTO"] = df_heat["NOME"].apply(lambda x: " ".join(str(x).split()[:2]))
 df_heat = df_heat.sort_values("NOTA_CORRIDA", ascending=False)
 
-z_vals = df_heat[colunas_nota].values
+z_vals = df_heat[colunas_nota].values.tolist()
 nomes  = df_heat["NOME_CURTO"].tolist()
 
 fig_heat = go.Figure(go.Heatmap(
     z=z_vals, x=labels_nota, y=nomes,
-    colorscale=[[0.0, "#ef4444"], [0.5, "#f59e0b"], [0.75, "#3b82f6"], [1.0, "#22c55e"]],
+    colorscale=[
+        [0.0,  "#ef4444"],
+        [0.5,  "#f59e0b"],
+        [0.75, "#3b82f6"],
+        [1.0,  "#22c55e"],
+    ],
     zmin=0, zmax=10,
-    text=[[f"{v:.1f}" for v in row] for row in z_vals],
+    text=[[f"{v:.1f}" if v == v else "—" for v in row] for row in z_vals],
     texttemplate="%{text}",
     hovertemplate="<b>%{y}</b><br>%{x}: %{z:.1f}<extra></extra>",
     colorbar=dict(title="Nota", tickfont_color="#e7eefc", title_font_color="#e7eefc"),
@@ -410,7 +442,7 @@ st.warning(
 )
 
 
-# ── Correlação corrida × média ────────────────────────────────────────────────
+# ── Correlação ────────────────────────────────────────────────────────────────
 st.markdown('<p class="section-title">🏃 Correlação: Corrida 12min × Média Final</p>',
             unsafe_allow_html=True)
 
@@ -419,7 +451,10 @@ fig_scatter = px.scatter(
     color="CLASSIFICACAO", color_discrete_map=cor_map,
     size="MEDIA_FINAL", hover_name="NOME",
     trendline="ols", trendline_color_override="#ffffff",
-    labels={"CORRIDA_12MIN": "Metros percorridos (12 min)", "MEDIA_FINAL": "Média Final"},
+    labels={
+        "CORRIDA_12MIN": "Metros percorridos (12 min)",
+        "MEDIA_FINAL":   "Média Final",
+    },
     title="Militares com maior distância na corrida tendem a ter média final mais alta?",
 )
 fig_scatter.update_layout(
@@ -439,7 +474,9 @@ st.markdown('<p class="section-title">📋 Ficha Individual — Consulta por mil
 busca = st.text_input("🔎 Buscar militar pelo nome")
 df_tabela = df_f.copy()
 if busca:
-    df_tabela = df_tabela[df_tabela["NOME"].str.contains(busca.upper(), na=False)]
+    df_tabela = df_tabela[
+        df_tabela["NOME"].str.upper().str.contains(busca.upper(), na=False)
+    ]
 
 militar_selecionado = st.selectbox(
     "Selecione um militar para ver o perfil radar individual",
@@ -449,18 +486,29 @@ militar_selecionado = st.selectbox(
 col_tab, col_radar_ind = st.columns([1.6, 1])
 
 with col_tab:
-    df_display = df_tabela[[
-        "ORD", "NOME", "NOTA_CORRIDA", "NOTA_ABDOMINAL",
-        "NOTA_FLEXAO", "NOTA_NATACAO", "NOTA_BARRA",
-        "MEDIA_FINAL", "CLASSIFICACAO", "PONTO_FRACO",
-    ]].rename(columns={
-        "ORD": "Nº", "NOTA_CORRIDA": "Corrida", "NOTA_ABDOMINAL": "Abdominal",
-        "NOTA_FLEXAO": "Flexão", "NOTA_NATACAO": "Natação", "NOTA_BARRA": "Barra",
-        "MEDIA_FINAL": "Média", "CLASSIFICACAO": "Status", "PONTO_FRACO": "Ponto Fraco",
+    colunas_exibir = ["ORD", "NOME", "NOTA_CORRIDA", "NOTA_ABDOMINAL",
+                      "NOTA_FLEXAO", "NOTA_NATACAO", "NOTA_BARRA",
+                      "MEDIA_FINAL", "CLASSIFICACAO", "PONTO_FRACO"]
+    colunas_exibir = [c for c in colunas_exibir if c in df_tabela.columns]
+
+    df_display = df_tabela[colunas_exibir].rename(columns={
+        "ORD":            "Nº",
+        "NOTA_CORRIDA":   "Corrida",
+        "NOTA_ABDOMINAL": "Abdominal",
+        "NOTA_FLEXAO":    "Flexão",
+        "NOTA_NATACAO":   "Natação",
+        "NOTA_BARRA":     "Barra",
+        "MEDIA_FINAL":    "Média",
+        "CLASSIFICACAO":  "Status",
+        "PONTO_FRACO":    "Ponto Fraco",
     })
 
     def colorir_media(val):
-        if val >= 9.5:  return "background-color: rgba(34,197,94,.25); color:#bbf7d0"
+        try:
+            val = float(val)
+        except (ValueError, TypeError):
+            return ""
+        if val >= 9.5:   return "background-color: rgba(34,197,94,.25); color:#bbf7d0"
         elif val >= 8.5: return "background-color: rgba(59,130,246,.25); color:#bfdbfe"
         elif val >= 7.0: return "background-color: rgba(245,158,11,.25); color:#fde68a"
         else:            return "background-color: rgba(239,68,68,.25); color:#fecaca"
@@ -470,39 +518,49 @@ with col_tab:
 
 with col_radar_ind:
     row = df_f[df_f["NOME"] == militar_selecionado].iloc[0]
-    vals_ind  = [row[c] for c in colunas_nota]
+    vals_ind   = [float(row[c]) if pd.notna(row[c]) else 0 for c in colunas_nota]
     nome_curto = " ".join(str(militar_selecionado).split()[:2])
 
     fig_ind = go.Figure(go.Scatterpolar(
-        r=vals_ind + [vals_ind[0]], theta=cats, fill="toself",
-        name=nome_curto, line_color="#3b82f6", fillcolor="rgba(59,130,246,.2)",
+        r=vals_ind + [vals_ind[0]], theta=cats,
+        fill="toself", name=nome_curto,
+        line_color="#3b82f6", fillcolor="rgba(59,130,246,.2)",
     ))
     fig_ind.add_trace(go.Scatterpolar(
-        r=[10] * len(cats), theta=cats, fill="toself", name="Máximo",
-        line_color="rgba(255,255,255,.15)", fillcolor="rgba(255,255,255,.04)",
+        r=[10] * len(cats), theta=cats,
+        fill="toself", name="Máximo",
+        line_color="rgba(255,255,255,.15)",
+        fillcolor="rgba(255,255,255,.04)",
     ))
     fig_ind.update_layout(
         polar=dict(
             bgcolor="rgba(0,0,0,0)",
-            radialaxis=dict(visible=True, range=[0, 10],
-                            gridcolor="rgba(255,255,255,.12)", tickfont_color="#94a3b8"),
+            radialaxis=dict(
+                visible=True, range=[0, 10],
+                gridcolor="rgba(255,255,255,.12)",
+                tickfont_color="#94a3b8",
+            ),
             angularaxis=dict(gridcolor="rgba(255,255,255,.12)"),
         ),
         paper_bgcolor="rgba(0,0,0,0)", font_color="#e7eefc",
-        title=f"Perfil: {nome_curto}<br><sup>Média: {row['MEDIA_FINAL']:.1f} · {row['CLASSIFICACAO']}</sup>",
-        height=400, showlegend=False, margin=dict(t=80, b=20),
+        title=(
+            f"Perfil: {nome_curto}<br>"
+            f"<sup>Média: {row['MEDIA_FINAL']:.1f} · {row['CLASSIFICACAO']}</sup>"
+        ),
+        height=400, showlegend=False,
+        margin=dict(t=80, b=20),
     )
     st.plotly_chart(fig_ind, use_container_width=True)
 
-    pf = row["PONTO_FRACO"]
-    pf_notas = {l: row[c] for l, c in zip(labels_nota, colunas_nota)}
-    pf_forte  = max(pf_notas, key=pf_notas.get)
+    pf_notas  = {l: float(row[c]) for l, c in zip(labels_nota, colunas_nota) if pd.notna(row[c])}
+    pf_forte  = max(pf_notas, key=pf_notas.get) if pf_notas else "—"
+    pf_fraco  = row["PONTO_FRACO"]
 
     st.markdown(f"""
     <div style="background:rgba(17,27,46,.8);border:1px solid rgba(255,255,255,.1);
                 border-radius:12px;padding:14px;font-size:.9rem;line-height:1.8;">
       <b>Ponto forte:</b> {pf_forte}<br>
-      <b>Ponto fraco:</b> {pf}<br>
+      <b>Ponto fraco:</b> {pf_fraco}<br>
       <b>Média final:</b> {row['MEDIA_FINAL']:.1f}<br>
       <b>Classificação:</b> {row['CLASSIFICACAO']}
     </div>
