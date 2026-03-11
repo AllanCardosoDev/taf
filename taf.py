@@ -62,7 +62,7 @@ st.markdown("""
 # ── Carregamento e preparação dos dados ──────────────────────────────────────
 @st.cache_data
 def carregar_dados():
-    df = pd.read_csv("dados.csv")
+    df = pd.read_csv("table.xlsx")
 
     # Classificação de desempenho
     def classificar(media):
