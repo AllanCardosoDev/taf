@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 import numpy as np
 import re
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta # Importar timedelta
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CONFIGURAÇÃO
@@ -299,10 +299,29 @@ def load_data():
         "BARRA_taf": "BARRA_RAW",
     })
 
-    # Preencher dados de sexo e data_taf (nascimento)
-    # Se 'sexo' ou 'data_taf' estiverem nulos após o merge, tentar preencher
-    # df_merged['sexo'] = df_merged['sexo'].fillna(df_merged['sexo_indices']) # Já feito pelo merge
-    # df_merged['data_taf'] = df_merged['data_taf'].fillna(df_merged['data_taf_indices']) # Já feito pelo merge
+    # --- INÍCIO DA MODIFICAÇÃO PARA DATA DE NASCIMENTO ---
+    # Se você tiver uma coluna de data de nascimento em TAF.csv, use-a.
+    # Exemplo: df_taf["DATA_NASCIMENTO"] = pd.to_datetime(df_taf["DATA_NASCIMENTO"])
+    # E então no merge: df_merged = pd.merge(df_taf, df_indices, ..., how="left")
+    # Para fins de demonstração e para fazer a projeção anual funcionar,
+    # vamos criar uma DATA_NASCIMENTO fictícia.
+    # A data de nascimento será calculada para que a idade em 2023 (primeiro ano no taf_indices)
+    # seja razoável, por exemplo, 25 anos.
+    # Isso é um placeholder e DEVE SER SUBSTITUÍDO pela data de nascimento real.
+
+    # Encontrar o ano mais antigo no 'data_taf' para basear a idade fictícia
+    ano_base_taf = df_merged["data_taf"].min().year if not df_merged["data_taf"].empty else 2023
+
+    # Criar uma data de nascimento fictícia para cada militar
+    # Assumimos uma idade média de 25 anos no ano base do TAF
+    # A data de nascimento fictícia será 12 de janeiro de (ano_base_taf - 25)
+    df_merged["DATA_NASCIMENTO"] = df_merged["data_taf"].apply(
+        lambda x: datetime(x.year - 25, 1, 12) if pd.notna(x) else pd.NaT
+    )
+    # IMPORTANTE: Substitua a linha acima pela sua coluna de DATA_NASCIMENTO real
+    # Exemplo: df_merged["DATA_NASCIMENTO"] = pd.to_datetime(df_merged["SUA_COLUNA_DATA_NASCIMENTO_AQUI"])
+    # --- FIM DA MODIFICAÇÃO PARA DATA DE NASCIMENTO ---
+
 
     # Converter colunas para o tipo correto
     df_merged["CORRIDA"] = pd.to_numeric(df_merged["CORRIDA_RAW"], errors="coerce")
@@ -370,6 +389,7 @@ with st.sidebar:
 
         # Filtro de Ano (agora funcional para a data do TAF)
         # Extrair anos únicos da coluna 'data_taf' do df_indices
+        # Usar todos os anos disponíveis para o filtro, pois o processamento será multi-ano
         anos_disponiveis = sorted(df_normal["data_taf"].dt.year.dropna().unique().tolist(), reverse=True)
         if not anos_disponiveis:
             anos_disponiveis = [datetime.now().year] # Ano atual se não houver dados
@@ -400,6 +420,7 @@ with st.sidebar:
 
         nota_minima = st.slider("Média mínima", 0.0, 10.0, 0.0, 0.1)
     else: # Para páginas que não usam filtros globais ou os gerenciam internamente
+        # Para estas páginas, podemos querer todos os anos ou um conjunto específico
         filtro_ano = df_normal["data_taf"].dt.year.dropna().unique().tolist()
         filtro_posto = df_normal["POSTO_GRAD"].unique().tolist()
         filtro_quadro = df_normal["QUADRO"].unique().tolist()
@@ -421,11 +442,19 @@ with st.sidebar:
 # Esta função será chamada para cada ano de referência (para filtros e projeções)
 def process_dataframe_for_year(df_input, ref_year):
     df = df_input.copy()
-    data_referencia_calculo = datetime(ref_year, 1, 12) # Sempre 12 de janeiro do ano de referência
+    # A data de referência para o cálculo da idade deve ser a data do TAF para aquele ano
+    # ou uma data fixa no ano para projeção.
+    # Para o cálculo da idade, usamos a DATA_NASCIMENTO e a data do TAF.
+    # Se 'data_taf' já é uma coluna no df_input, usaremos ela.
+    # Se estamos projetando para um ano futuro, podemos usar uma data fixa para o TAF.
 
-    # Calcular a idade com base na data_taf (assumida como nascimento) e na data de referência
+    # Adicionar uma coluna 'ANO_TAF_REALIZADO' para o ano real do TAF
+    df['ANO_TAF_REALIZADO'] = df['data_taf'].dt.year
+
+    # Calcular a idade com base na DATA_NASCIMENTO e na data do TAF
+    # Se a data_taf for do ano de referência, usa ela. Caso contrário, usa uma data fixa no ano de referência.
     df["IDADE"] = df.apply(
-        lambda row: calcular_idade(row["data_taf"], data_referencia_calculo), axis=1
+        lambda row: calcular_idade(row["DATA_NASCIMENTO"], row["data_taf"]) if row["ANO_TAF_REALIZADO"] == ref_year else calcular_idade(row["DATA_NASCIMENTO"], datetime(ref_year, 1, 12)), axis=1
     )
 
     # Calcular notas para cada disciplina
@@ -461,24 +490,34 @@ def process_dataframe_for_year(df_input, ref_year):
 
     return df
 
-# Processar o dataframe principal com o ano selecionado no filtro (ou o primeiro ano disponível)
-ano_para_processamento = filtro_ano[0] if filtro_ano else (datetime.now().year if not df_normal.empty else 2026)
-df_all = process_dataframe_for_year(df_normal, ano_para_processamento)
+# Processar o dataframe principal para TODOS os anos disponíveis no filtro
+# Isso cria um dataframe com dados processados para cada ano de TAF
+# e com a idade calculada para a data do TAF daquele ano.
+# Se o filtro_ano tiver múltiplos anos, o df_all_processed terá entradas para cada ano.
+list_of_dfs = []
+for ano in sorted(df_normal["data_taf"].dt.year.dropna().unique().tolist()):
+    df_filtered_by_taf_year = df_normal[df_normal["data_taf"].dt.year == ano].copy()
+    if not df_filtered_by_taf_year.empty:
+        processed_df_for_year = process_dataframe_for_year(df_filtered_by_taf_year, ano)
+        processed_df_for_year['ANO_REFERENCIA_CALCULO'] = ano # Adiciona o ano de referência
+        list_of_dfs.append(processed_df_for_year)
+
+if list_of_dfs:
+    df_all_processed = pd.concat(list_of_dfs, ignore_index=True)
+else:
+    df_all_processed = pd.DataFrame() # DataFrame vazio se não houver dados
+
+# Agora, df_all_processed contém todos os dados processados para todos os anos de TAF.
+# Para as páginas principais, vamos filtrar por 'ANO_REFERENCIA_CALCULO'
+# que corresponde ao 'filtro_ano' selecionado na sidebar.
+# Se múltiplos anos forem selecionados, o dashboard principal mostrará a média/soma desses anos.
+df_all = df_all_processed[df_all_processed["ANO_REFERENCIA_CALCULO"].isin(filtro_ano)].copy()
 
 
 # ── Aplicar filtros da sidebar ────────────────────────────────────────────────
 df_f = df_all.copy()
 if not mostrar_ausentes:
     df_f = df_f[df_f["PRESENTE"]]
-
-# O filtro de ano já foi aplicado no process_dataframe_for_year para o df_all
-# Se quisermos filtrar por anos de TAF *diferentes* do ano de referência para a idade,
-# precisaríamos de uma coluna 'ANO_TAF_REALIZADO' e filtrar por ela aqui.
-# Por enquanto, 'df_all' já está processado para um único ano de referência de idade.
-# Se o usuário selecionar múltiplos anos no filtro_ano, o df_all ainda será baseado no primeiro.
-# Para uma análise multi-ano completa, o loop de processamento precisaria ser mais complexo.
-# Por simplicidade, para o dashboard principal, 'df_all' reflete o primeiro ano selecionado.
-# A seção de projeção anual lidará com múltiplos anos de referência de idade.
 
 df_f = df_f[df_f["POSTO_GRAD"].isin(filtro_posto)]
 df_f = df_f[df_f["QUADRO"].isin(filtro_quadro)]
@@ -508,10 +547,12 @@ if pagina == "🏠 Visão Geral":
 
     col_txt, col_img = st.columns([2.2, 1])
     with col_txt:
+        # Ajustar o ano exibido para refletir os anos selecionados
+        anos_exibidos = ", ".join(map(str, sorted(filtro_ano))) if filtro_ano else "N/A"
         st.markdown(f"""
         <h1 style="margin:0;font-size:2rem;">🔥 Dashboard TAF · CBMAM</h1>
         <p style="margin:6px 0 12px;color:#94a3b8;">
-          Corpo de Bombeiros Militar do Amazonas · Avaliação Física {ano_para_processamento}
+          Corpo de Bombeiros Militar do Amazonas · Avaliação Física {anos_exibidos}
         </p>
         """, unsafe_allow_html=True)
         st.markdown("""
@@ -521,12 +562,8 @@ if pagina == "🏠 Visão Geral":
         """)
 
     with col_img:
-        # Removendo a imagem 'japura.enc' pois não está disponível e pode causar erro
-        # foto = Path("japura.enc")
-        # if foto.exists():
-        #     st.image(str(foto), caption="CBMAM · 2026", use_container_width=True)
         st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Bras%C3%A3o_do_Corpo_de_Bombeiros_Militar_do_Amazonas.svg/1200px-Bras%C3%A3o_do_Corpo_de_Bombeiros_Militar_do_Amazonas.svg.png",
-                 caption=f"CBMAM · {ano_para_processamento}", use_container_width=True)
+                 caption=f"CBMAM · {anos_exibidos}", use_container_width=True)
 
 
     st.divider()
@@ -542,7 +579,7 @@ if pagina == "🏠 Visão Geral":
         pior = df_presentes.loc[df_presentes["MEDIA_FINAL"].idxmin()]
         n_excelentes = len(df_presentes[df_presentes["CLASSIFICACAO"] == "Excelente"])
         n_insuficientes = len(df_presentes[df_presentes["CLASSIFICACAO"] == "Insuficiente"])
-        n_ausentes = len(df_all[~df_all["PRESENTE"]])
+        n_ausentes = len(df_all[~df_all["PRESENTE"]]) # df_all aqui já é o filtrado por ano
 
         k1.metric("👥 Presentes", len(df_presentes))
         k2.metric("📈 Média Geral", f"{media_geral:.2f}")
@@ -569,7 +606,7 @@ if pagina == "🏠 Visão Geral":
             color="CLASSIFICACAO", color_discrete_map=COR_MAP,
             text="MEDIA_FINAL",
             hover_data={"NOME": True, "MEDIA_FINAL": True, "CLASSIFICACAO": True,
-                       "POSTO_GRAD": True, "QUADRO": True, "sexo": True, "IDADE": True},
+                       "POSTO_GRAD": True, "QUADRO": True, "sexo": True, "IDADE": True, "ANO_REFERENCIA_CALCULO": True},
             labels={"MEDIA_FINAL": "Média Final", "LABEL": ""},
         )
         fig_rank.update_traces(texttemplate="%{text:.1f}", textposition="outside")
@@ -748,7 +785,7 @@ if pagina == "🏠 Visão Geral":
                     unsafe_allow_html=True)
 
         df_display = df_presentes[[
-            "ORD", "POSTO_GRAD", "QUADRO", "NOME", "sexo", "IDADE",
+            "ORD", "POSTO_GRAD", "QUADRO", "NOME", "sexo", "IDADE", "ANO_REFERENCIA_CALCULO",
             "NOTA_CORRIDA", "NOTA_ABDOMINAL", "NOTA_FLEXAO",
             "NOTA_NATACAO", "NOTA_BARRA", "MEDIA_FINAL",
             "CLASSIFICACAO", "PONTO_FRACO",
@@ -758,7 +795,7 @@ if pagina == "🏠 Visão Geral":
             "NOTA_FLEXAO": "Flexão", "NOTA_NATACAO": "Natação",
             "NOTA_BARRA": "Barra", "MEDIA_FINAL": "Média",
             "CLASSIFICACAO": "Status", "PONTO_FRACO": "Ponto Fraco",
-            "sexo": "Sexo", "IDADE": "Idade"
+            "sexo": "Sexo", "IDADE": "Idade", "ANO_REFERENCIA_CALCULO": "Ano TAF"
         })
 
         def colorir(val):
@@ -822,10 +859,11 @@ elif pagina == "📈 Projeção Anual":
     st.markdown("**🔎 Selecionar Militar para Projeção**")
     busca_proj = st.text_input("Buscar por nome (Projeção)", placeholder="Digite parte do nome...")
 
+    # Usar df_normal para a lista de militares, pois contém todos os dados brutos
     df_proj_base = df_normal[df_normal["PRESENTE"]].copy()
     lista_nomes_proj = df_proj_base["NOME"].tolist()
     if busca_proj:
-        lista_nomes_proj = [n for n in lista_nomes_proj if busca_proj.upper() in n]
+        lista_nomes_proj = [n for n in lista_nomes_proj if busca_proj.upper() in n.upper()] # .upper() para busca case-insensitive
 
     if lista_nomes_proj:
         militar_sel_proj = st.selectbox("Militar para Projeção", lista_nomes_proj)
@@ -843,11 +881,28 @@ elif pagina == "📈 Projeção Anual":
         militar_data_original = df_normal[df_normal["NOME"] == militar_sel_proj].iloc[0]
 
         # Anos para projetar
-        anos_projecao = [2024, 2025, 2026]
+        # Usar os anos disponíveis no 'data_taf' ou definir um range fixo
+        anos_projecao = sorted(df_normal["data_taf"].dt.year.dropna().unique().tolist())
+        if not anos_projecao:
+            anos_projecao = [datetime.now().year, datetime.now().year + 1, datetime.now().year + 2] # Default se não houver dados
+
         resultados_projecao = []
 
         for ano in anos_projecao:
-            df_temp_proj = process_dataframe_for_year(militar_data_original.to_frame().T, ano)
+            # Para projeção, a data de referência para calcular a idade é uma data fixa no ano da projeção
+            # e a data de nascimento é a DATA_NASCIMENTO do militar.
+            data_referencia_projecao = datetime(ano, 1, 12) # Ex: 12 de janeiro de cada ano
+
+            # Criar um DataFrame temporário para o militar para aplicar process_dataframe_for_year
+            # É importante manter os valores brutos de desempenho do militar
+            temp_militar_df = pd.DataFrame([militar_data_original.to_dict()])
+
+            # A função process_dataframe_for_year espera 'data_taf' para calcular a idade.
+            # Para projeção, vamos sobrescrever 'data_taf' temporariamente para o ano de projeção
+            # para que a idade seja calculada corretamente para aquele ano.
+            temp_militar_df['data_taf'] = data_referencia_projecao
+
+            df_temp_proj = process_dataframe_for_year(temp_militar_df, ano)
             row_proj = df_temp_proj.iloc[0]
             resultados_projecao.append({
                 "Ano": ano,
@@ -894,7 +949,7 @@ elif pagina == "📈 Projeção Anual":
                     unsafe_allow_html=True)
 
         fig_radar_proj = go.Figure()
-        cores_proj = ["#22c55e", "#3b82f6", "#ef4444"] # Cores para 2024, 2025, 2026
+        cores_proj = ["#22c55e", "#3b82f6", "#ef4444", "#f59e0b", "#a855f7"] # Cores para múltiplos anos
 
         for i, ano in enumerate(anos_projecao):
             row_proj = df_projecao[df_projecao["Ano"] == ano].iloc[0]
@@ -1055,7 +1110,8 @@ elif pagina == "🪖 Por Posto/Graduação":
         st.markdown('<p class="section-title">📋 Taxa de Ausência por Posto</p>',
                     unsafe_allow_html=True)
 
-        ausencia = df_all.groupby("POSTO_GRAD").agg(
+        # Usar df_all_processed para calcular ausência em todos os anos disponíveis
+        ausencia = df_all_processed.groupby("POSTO_GRAD").agg(
             Total=("NOME", "count"),
             Ausentes=("PRESENTE", lambda x: (~x).sum()),
         ).reset_index()
@@ -1239,10 +1295,11 @@ elif pagina == "👤 Ficha Individual":
         st.markdown("**🔎 Selecionar Militar**")
         busca = st.text_input("Buscar por nome", placeholder="Digite parte do nome...")
 
-        df_busca = df_all[df_all["PRESENTE"]].copy()
-        lista_nomes = df_busca["NOME"].tolist()
+        # Usar df_all_processed para a busca, pois contém todos os anos e dados processados
+        df_busca = df_all_processed[df_all_processed["PRESENTE"]].copy()
+        lista_nomes = df_busca["NOME"].unique().tolist() # Nomes únicos para evitar duplicatas se um militar aparece em vários anos
         if busca:
-            lista_nomes = [n for n in lista_nomes if busca.upper() in n]
+            lista_nomes = [n for n in lista_nomes if busca.upper() in n.upper()]
 
         if lista_nomes:
             militar_sel = st.selectbox("Militar", lista_nomes)
@@ -1253,7 +1310,17 @@ elif pagina == "👤 Ficha Individual":
     if militar_sel is None:
         st.warning("Nenhum militar disponível.")
     else:
-        row = df_all[df_all["NOME"] == militar_sel].iloc[0]
+        # Para a ficha individual, vamos pegar a entrada mais recente do militar (último ano de TAF)
+        # ou permitir que o usuário selecione o ano do TAF para o qual quer ver a ficha.
+        st.markdown(f'<p class="section-title">Ano do TAF para Ficha Individual</p>', unsafe_allow_html=True)
+        anos_disponiveis_militar = sorted(df_all_processed[df_all_processed["NOME"] == militar_sel]["ANO_REFERENCIA_CALCULO"].dropna().unique().tolist(), reverse=True)
+        if not anos_disponiveis_militar:
+            st.warning("Nenhum TAF encontrado para este militar.")
+            st.stop()
+
+        ano_ficha_sel = st.selectbox("Selecione o ano do TAF", anos_disponiveis_militar, index=0)
+
+        row = df_all_processed[(df_all_processed["NOME"] == militar_sel) & (df_all_processed["ANO_REFERENCIA_CALCULO"] == ano_ficha_sel)].iloc[0]
         vals_ind = [float(row[c]) if pd.notna(row[c]) else 0.0 for c in colunas_nota]
         nome_curto = " ".join(str(militar_sel).split()[:2])
         media_ind = float(row["MEDIA_FINAL"]) if pd.notna(row["MEDIA_FINAL"]) else 0.0
@@ -1264,17 +1331,19 @@ elif pagina == "👤 Ficha Individual":
         idade_ind = int(row["IDADE"]) if pd.notna(row["IDADE"]) else "N/A"
 
         # Comparações
-        media_geral = df_all[df_all["PRESENTE"]]["MEDIA_FINAL"].mean()
+        # Média geral e média por posto devem ser do ano selecionado para a ficha
+        df_comparacao_ano = df_all_processed[df_all_processed["ANO_REFERENCIA_CALCULO"] == ano_ficha_sel]
+        media_geral = df_comparacao_ano[df_comparacao_ano["PRESENTE"]]["MEDIA_FINAL"].mean()
         diff_geral = media_ind - media_geral
 
         # Média do mesmo posto
-        media_posto = df_all[
-            (df_all["PRESENTE"]) & (df_all["POSTO_GRAD"] == posto_ind)
+        media_posto = df_comparacao_ano[
+            (df_comparacao_ano["PRESENTE"]) & (df_comparacao_ano["POSTO_GRAD"] == posto_ind)
         ]["MEDIA_FINAL"].mean()
         diff_posto = media_ind - media_posto
 
         # Ranking
-        df_rank_calc = df_all[df_all["PRESENTE"] & df_all["MEDIA_FINAL"].notna()].copy()
+        df_rank_calc = df_comparacao_ano[df_comparacao_ano["PRESENTE"] & df_comparacao_ano["MEDIA_FINAL"].notna()].copy()
         rank_pos = df_rank_calc["MEDIA_FINAL"].rank(ascending=False, method="min")
         posicao = int(rank_pos[df_rank_calc["NOME"] == militar_sel].values[0])
         total = len(df_rank_calc)
@@ -1303,7 +1372,7 @@ elif pagina == "👤 Ficha Individual":
             <div>
               <div style="font-size:1.8rem;font-weight:800;">🪖 {nome_curto}</div>
               <div style="color:#94a3b8;margin-top:4px;">
-                {posto_ind} · {quadro_ind} · {sexo_ind} · {idade_ind} anos · CBMAM · {ano_para_processamento}
+                {posto_ind} · {quadro_ind} · {sexo_ind} · {idade_ind} anos · CBMAM · {ano_ficha_sel}
               </div>
             </div>
             <div style="display:flex;gap:12px;flex-wrap:wrap;">
@@ -1358,9 +1427,10 @@ elif pagina == "👤 Ficha Individual":
         # Radar e barras
         col_r, col_b2 = st.columns(2)
 
-        med_geral_vals = [df_all[df_all["PRESENTE"]][c].mean() for c in colunas_nota]
+        # Médias gerais e por posto devem ser do ano selecionado para a ficha
+        med_geral_vals = [df_comparacao_ano[df_comparacao_ano["PRESENTE"]][c].mean() for c in colunas_nota]
         med_posto_vals = [
-            df_all[(df_all["PRESENTE"]) & (df_all["POSTO_GRAD"] == posto_ind)][c].mean()
+            df_comparacao_ano[(df_comparacao_ano["PRESENTE"]) & (df_comparacao_ano["POSTO_GRAD"] == posto_ind)][c].mean()
             for c in colunas_nota
         ]
 
@@ -1435,7 +1505,7 @@ elif pagina == "👤 Ficha Individual":
         cols_disc = st.columns(5)
         for i, (label, col_n) in enumerate(zip(labels_nota, colunas_nota)):
             nota_v = float(row[col_n]) if pd.notna(row[col_n]) else 0.0
-            med_v = df_all[df_all["PRESENTE"]][col_n].mean()
+            med_v = df_comparacao_ano[df_comparacao_ano["PRESENTE"]][col_n].mean() # Média do ano selecionado
             delta_v = nota_v - med_v
             s = "+" if delta_v >= 0 else ""
             c_delta = "#22c55e" if delta_v >= 0 else "#ef4444"
@@ -1627,7 +1697,7 @@ elif pagina == "📊 Estatísticas":
         with col_t:
             st.markdown("**🥇 Top 10 — Maiores Médias**")
             top10 = df_presentes.nlargest(10, "MEDIA_FINAL")[
-                ["NOME", "POSTO_GRAD", "QUADRO", "sexo", "IDADE", "MEDIA_FINAL", "CLASSIFICACAO"]
+                ["NOME", "POSTO_GRAD", "QUADRO", "sexo", "IDADE", "MEDIA_FINAL", "CLASSIFICACAO", "ANO_REFERENCIA_CALCULO"]
             ].reset_index(drop=True)
             top10.index += 1
             st.dataframe(top10, use_container_width=True)
@@ -1635,7 +1705,7 @@ elif pagina == "📊 Estatísticas":
         with col_bt:
             st.markdown("**⚠️ Bottom 10 — Menores Médias**")
             bot10 = df_presentes.nsmallest(10, "MEDIA_FINAL")[
-                ["NOME", "POSTO_GRAD", "QUADRO", "sexo", "IDADE", "MEDIA_FINAL", "CLASSIFICACAO"]
+                ["NOME", "POSTO_GRAD", "QUADRO", "sexo", "IDADE", "MEDIA_FINAL", "CLASSIFICACAO", "ANO_REFERENCIA_CALCULO"]
             ].reset_index(drop=True)
             bot10.index += 1
             st.dataframe(bot10, use_container_width=True)
