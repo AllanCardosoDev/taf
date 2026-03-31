@@ -64,9 +64,6 @@ ORDEM_POSTO = {
     "CB": 12, "SD": 13,
 }
 
-# Data de referência para cálculo da idade (data do BG)
-DATA_REFERENCIA_TAF = datetime(2024, 1, 12)
-
 # ══════════════════════════════════════════════════════════════════════════════
 # TABELAS DE PONTUAÇÃO POR IDADE E SEXO (EXTRAÍDAS DO PDF)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -103,24 +100,28 @@ data_masc = {
     "45-49": [10, 10, 10, 10, 10, 10, 10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6, 5.5, 5, 4.5],
     "50-53": [10, 10, 10, 10, 10, 10, 10, 10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6, 5.5, 5],
     "54-57": [10, 10, 10, 10, 10, 10, 10, 10, 10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6, 5.5],
-    ">58": [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6],
+    "58+":   [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6],
 }
-df_masc = pd.DataFrame(data_masc)
-
 for i, (min_age, max_age) in enumerate(FAIXAS_ETARIAS_MASC):
-    col_name = list(data_masc.keys())[6 + i] # Colunas de notas por faixa etária
-    TABELAS_PONTUACAO[("M", min_age, max_age)] = df_masc[[
-        "Corrida", "Flexao", "Abdominal", "Barra_Din", "Barra_Est", "Natacao", col_name
-    ]].rename(columns={col_name: "Nota"})
+    col_name = f"{min_age}-{max_age}" if max_age != 150 else "58+"
+    df_temp = pd.DataFrame({
+        "Corrida": data_masc["Corrida"],
+        "Flexao": data_masc["Flexao"],
+        "Abdominal": data_masc["Abdominal"],
+        "Barra_Din": data_masc["Barra_Din"],
+        "Barra_Est": data_masc["Barra_Est"],
+        "Natacao": data_masc["Natacao"],
+        "Nota": data_masc[col_name],
+    })
+    TABELAS_PONTUACAO[("M", min_age, max_age)] = df_temp
 
 # Tabela Feminina (extraída da PAGE 2 do PDF)
 data_fem = {
-    "Corrida": [2700, 2600, 2500, 2400, 2300, 2200, 2100, 2000, 1900, 1800, 1700, 1600, 1500, 1400, 1300, 1200, 1100, 1000],
+    "Corrida": [2800, 2700, 2600, 2500, 2400, 2300, 2200, 2100, 2000, 1900, 1800, 1700, 1600, 1500, 1400, 1300, 1200, 1100],
     "Flexao": [30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16, 15, 14, 13],
-    "Abdominal": [42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25],
-    "Barra_Din": [np.nan] * 18, # Feminino não tem barra dinâmica
+    "Abdominal": [40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23],
     "Barra_Est": [50, 47, 45, 43, 41, 39, 37, 35, 33, 31, 29, 27, 25, 23, 21, 19, 17, 15], # segundos
-    "Natacao": [54, 58, 62, 66, 70, 74, 78, 82, 86, 90, 94, 98, 102, 106, 110, 114, 122, 126], # segundos
+    "Natacao": [45, 49, 53, 57, 61, 65, 69, 73, 77, 81, 85, 89, 93, 97, 101, 105, 109, 113], # segundos
     "18-21": [10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6, 5.5, 5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5],
     "22-25": [10, 10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6, 5.5, 5, 4.5, 4, 3.5, 3, 2.5, 2],
     "26-29": [10, 10, 10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6, 5.5, 5, 4.5, 4, 3.5, 3, 2.5],
@@ -130,15 +131,19 @@ data_fem = {
     "45-49": [10, 10, 10, 10, 10, 10, 10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6, 5.5, 5, 4.5],
     "50-53": [10, 10, 10, 10, 10, 10, 10, 10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6, 5.5, 5],
     "54-57": [10, 10, 10, 10, 10, 10, 10, 10, 10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6, 5.5],
-    ">58": [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6],
+    "58+":   [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 9.5, 9, 8.5, 8, 7.5, 7, 6.5, 6],
 }
-df_fem = pd.DataFrame(data_fem)
-
 for i, (min_age, max_age) in enumerate(FAIXAS_ETARIAS_FEM):
-    col_name = list(data_fem.keys())[6 + i]
-    TABELAS_PONTUACAO[("F", min_age, max_age)] = df_fem[[
-        "Corrida", "Flexao", "Abdominal", "Barra_Din", "Barra_Est", "Natacao", col_name
-    ]].rename(columns={col_name: "Nota"})
+    col_name = f"{min_age}-{max_age}" if max_age != 150 else "58+"
+    df_temp = pd.DataFrame({
+        "Corrida": data_fem["Corrida"],
+        "Flexao": data_fem["Flexao"],
+        "Abdominal": data_fem["Abdominal"],
+        "Barra_Est": data_fem["Barra_Est"], # Mulheres fazem barra estática
+        "Natacao": data_fem["Natacao"],
+        "Nota": data_fem[col_name],
+    })
+    TABELAS_PONTUACAO[("F", min_age, max_age)] = df_temp
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -150,354 +155,208 @@ def parse_time(val):
     if pd.isna(val):
         return np.nan
     s = str(val).strip()
-    if any(x in s.upper() for x in ["NÃO", "COMPARECEU", "APTO"]):
+    if any(x in s.upper() for x in ["NÃO", "COMPARECEU", "APTO", "00:00"]):
         return np.nan
     s = s.replace('"', "'").replace("''", "'").strip("'").strip()
     m = re.match(r"^0*(\d+)'(\d+)$", s)
     if m:
         return int(m.group(1)) * 60 + int(m.group(2))
-    m = re.match(r"^(\d+)$", s)
+    m = re.match(r"^0*(\d+)$", s) # Apenas segundos
     if m:
         return int(m.group(1))
+    m = re.match(r"^0*(\d+):(\d+)$", s) # Formato MM:SS
+    if m:
+        return int(m.group(1)) * 60 + int(m.group(2))
     return np.nan
 
-
-def classificar_barra_tipo(val_raw):
-    """Classifica se o valor da barra é dinâmica (reps) ou estática (tempo)."""
-    if pd.isna(val_raw):
-        return None
-    s = str(val_raw).strip()
-    if any(x in s.upper() for x in ["NÃO", "COMPARECEU"]):
-        return None
-    if "'" in s or '"' in s:
-        return "ESTATICA"
-    try:
-        float(s)
-        return "DINAMICA"
-    except ValueError:
-        return None
+def ordem_posto(posto):
+    """Retorna a ordem numérica de um posto/graduação."""
+    return ORDEM_POSTO.get(posto, 99)
 
 def calcular_idade(data_nascimento, data_referencia):
     """Calcula a idade em anos completos na data de referência."""
-    if pd.isna(data_nascimento):
+    if pd.isna(data_nascimento) or pd.isna(data_referencia):
         return np.nan
-    data_nascimento = pd.to_datetime(data_nascimento)
-    idade = data_referencia.year - data_nascimento.year - ((data_referencia.month, data_referencia.day) < (data_nascimento.month, data_nascimento.day))
-    return idade
+    age = data_referencia.year - data_nascimento.year
+    if (data_referencia.month < data_nascimento.month) or \
+       (data_referencia.month == data_nascimento.month and data_referencia.day < data_nascimento.day):
+        age -= 1
+    return age
 
-def obter_tabela_pontuacao(sexo, idade):
-    """Retorna a tabela de pontuação para o sexo e idade dados."""
-    if pd.isna(sexo) or pd.isna(idade):
-        return None
+def obter_nota(sexo, idade, exercicio, valor_desempenho, tipo_barra=None):
+    """Obtém a nota para um exercício com base no sexo, idade e valor de desempenho."""
+    if pd.isna(valor_desempenho) or pd.isna(sexo) or pd.isna(idade):
+        return np.nan
 
-    faixas = FAIXAS_ETARIAS_MASC if sexo == "M" else FAIXAS_ETARIAS_FEM
+    sexo_char = "M" if sexo == "Masculino" else "F"
+
+    faixas = FAIXAS_ETARIAS_MASC if sexo_char == "M" else FAIXAS_ETARIAS_FEM
+    tabela_faixa = None
     for min_age, max_age in faixas:
         if min_age <= idade <= max_age:
-            return TABELAS_PONTUACAO.get((sexo, min_age, max_age))
-    return None
-
-# ── Funções de Pontuação TAF (AGORA COM IDADE E SEXO) ───────────────────────
-
-def nota_corrida(metros, sexo, idade):
-    if pd.isna(metros) or pd.isna(sexo) or pd.isna(idade): return np.nan
-    tabela = obter_tabela_pontuacao(sexo, idade)
-    if tabela is None: return np.nan
-
-    # Para corrida, queremos a maior nota para o maior desempenho (metros)
-    # A tabela está em ordem decrescente de metros, então a primeira linha que atende é a nota máxima
-    for _, row in tabela.sort_values(by="Corrida", ascending=False).iterrows():
-        if metros >= row["Corrida"]:
-            return row["Nota"]
-    return tabela["Nota"].min() # Se não atingiu o mínimo da tabela, retorna a nota mais baixa ou 0
-
-
-def nota_abdominal(reps, sexo, idade):
-    if pd.isna(reps) or pd.isna(sexo) or pd.isna(idade): return np.nan
-    tabela = obter_tabela_pontuacao(sexo, idade)
-    if tabela is None: return np.nan
-
-    for _, row in tabela.sort_values(by="Abdominal", ascending=False).iterrows():
-        if reps >= row["Abdominal"]:
-            return row["Nota"]
-    return tabela["Nota"].min()
-
-
-def nota_flexao(reps, sexo, idade):
-    if pd.isna(reps) or pd.isna(sexo) or pd.isna(idade): return np.nan
-    tabela = obter_tabela_pontuacao(sexo, idade)
-    if tabela is None: return np.nan
-
-    for _, row in tabela.sort_values(by="Flexao", ascending=False).iterrows():
-        if reps >= row["Flexao"]:
-            return row["Nota"]
-    return tabela["Nota"].min()
-
-
-def nota_natacao(segs, sexo, idade):
-    if pd.isna(segs) or pd.isna(sexo) or pd.isna(idade): return np.nan
-    tabela = obter_tabela_pontuacao(sexo, idade)
-    if tabela is None: return np.nan
-
-    # Para natação, queremos a maior nota para o menor tempo (segs)
-    # A tabela está em ordem crescente de segundos, então a primeira linha que atende é a nota máxima
-    for _, row in tabela.sort_values(by="Natacao", ascending=True).iterrows():
-        if segs <= row["Natacao"]:
-            return row["Nota"]
-    return tabela["Nota"].min() # Se o tempo for muito alto, retorna a nota mais baixa ou 0
-
-
-def nota_barra_din(reps, sexo, idade):
-    if pd.isna(reps) or pd.isna(sexo) or pd.isna(idade): return np.nan
-    tabela = obter_tabela_pontuacao(sexo, idade)
-    if tabela is None or "Barra_Din" not in tabela.columns: return np.nan # Feminino não tem barra dinâmica
-
-    for _, row in tabela.sort_values(by="Barra_Din", ascending=False).iterrows():
-        if pd.notna(row["Barra_Din"]) and reps >= row["Barra_Din"]:
-            return row["Nota"]
-    return tabela["Nota"].min()
-
-
-def nota_barra_est(segs, sexo, idade):
-    if pd.isna(segs) or pd.isna(sexo) or pd.isna(idade): return np.nan
-    tabela = obter_tabela_pontuacao(sexo, idade)
-    if tabela is None or "Barra_Est" not in tabela.columns: return np.nan
-
-    # Para barra estática, queremos a maior nota para o maior tempo (segs)
-    for _, row in tabela.sort_values(by="Barra_Est", ascending=False).iterrows():
-        if pd.notna(row["Barra_Est"]) and segs >= row["Barra_Est"]:
-            return row["Nota"]
-    return tabela["Nota"].min()
-
-
-def classificar_media(m):
-    if pd.isna(m): return "Ausente"
-    if m >= 9.0: return "Excelente"
-    if m >= 7.5: return "Bom"
-    if m >= 6.0: return "Regular"
-    return "Insuficiente"
-
-
-def normalizar_posto(p):
-    """Normaliza variações de posto/graduação (º vs °)."""
-    s = str(p).strip().upper()
-    s = s.replace("º", "°")
-    return s
-
-
-def ordem_posto(p):
-    return ORDEM_POSTO.get(p, 99)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# CARREGAMENTO DE DADOS
-# ══════════════════════════════════════════════════════════════════════════════
-
-@st.cache_data
-def carregar_dados():
-    """Carrega e processa o TAF.csv — seção Regular (TAF completo)."""
-    df_raw = pd.read_csv("TAF.csv", header=None, encoding="utf-8-sig", dtype=str)
-
-    # Carregar taf_indices.csv para id, data_taf, sexo
-    df_indices = pd.read_csv("taf_indices.csv", encoding="utf-8-sig", dtype=str)
-    df_indices["id"] = df_indices["id"].astype(str).str.strip().str.upper()
-    df_indices["sexo"] = df_indices["sexo"].astype(str).str.strip().str.upper()
-    df_indices["data_taf"] = pd.to_datetime(df_indices["data_taf"], errors="coerce")
-
-    # Encontrar marcadores de seção
-    headers = []
-    adapted_marker = None
-    for i in range(len(df_raw)):
-        cell = str(df_raw.iloc[i, 0]).strip()
-        if cell == "ORD":
-            headers.append(i)
-        if "TAF ADAPTADO" in cell:
-            adapted_marker = i
-
-    # Seções regulares: antes do TAF ADAPTADO
-    regular_headers = [h for h in headers if adapted_marker is None or h < adapted_marker]
-
-    sections = []
-    for idx, h in enumerate(regular_headers):
-        if idx + 1 < len(regular_headers):
-            end = regular_headers[idx + 1] - 3
-        elif adapted_marker:
-            end = adapted_marker
-        else:
-            end = len(df_raw)
-
-        section = df_raw.iloc[h + 1:end].copy()
-        section = section[section.iloc[:, 0].notna()]
-        section = section[~section.iloc[:, 0].astype(str).str.strip().isin(["", "nan"])]
-        section = section[~section.iloc[:, 0].astype(str).str.contains(
-            r"TAF|FALTOU|MILITARES|^B$|^A$|DESEMPENHO", case=False, na=False
-        )]
-        section = section[pd.to_numeric(section.iloc[:, 0], errors="coerce").notna()]
-        sections.append(section)
-
-    df = pd.concat(sections, ignore_index=True)
-    df = df.iloc[:, :9]
-    df.columns = ["ORD", "POSTO_GRAD", "QUADRO", "NOME",
-                  "CORRIDA_RAW", "ABDOMINAL_RAW", "FLEXAO_RAW",
-                  "NATACAO_RAW", "BARRA_RAW"]
-
-    # Limpar strings
-    df["NOME"] = df["NOME"].astype(str).str.strip().str.upper()
-    df["POSTO_GRAD"] = df["POSTO_GRAD"].astype(str).apply(normalizar_posto)
-    df["QUADRO"] = df["QUADRO"].astype(str).str.strip().str.upper()
-    df["ORD"] = pd.to_numeric(df["ORD"], errors="coerce").astype("Int64")
-
-    # Unir com df_indices para obter id, data_taf e sexo
-    # Assumindo que 'NOME' pode ser usado para junção, ou que 'id' pode ser inferido/adicionado
-    # Para este exemplo, vamos assumir que o 'id' do taf_indices.csv corresponde a um identificador único no TAF.csv
-    # Se 'NOME' não for único, precisaremos de um 'id' no TAF.csv também.
-    # Por simplicidade, vou tentar juntar por nome, mas o ideal seria um ID único.
-    df = pd.merge(df, df_indices, left_on="NOME", right_on="id", how="left", suffixes=('', '_indices'))
-    # Se o 'id' do taf_indices for o nome, podemos renomear para evitar confusão
-    df['id'] = df['id'].fillna(df['NOME']) # Usa o nome como ID se não houver um ID explícito
-    df = df.drop(columns=['id_indices'], errors='ignore') # Remove coluna duplicada se houver
-
-    # Calcular idade
-    df["IDADE"] = df["data_taf"].apply(lambda x: calcular_idade(x, DATA_REFERENCIA_TAF))
-
-    # Marcar presentes/ausentes
-    df["PRESENTE"] = ~df["CORRIDA_RAW"].astype(str).str.upper().str.contains(
-        "NÃO COMPARECEU", na=False
-    )
-
-    # Parsear valores brutos
-    df["CORRIDA"] = pd.to_numeric(
-        df["CORRIDA_RAW"].astype(str).str.replace(",", ".", regex=False).str.strip(),
-        errors="coerce"
-    )
-    df.loc[df["CORRIDA"] > 5000, "CORRIDA"] = df.loc[df["CORRIDA"] > 5000, "CORRIDA"] / 10
-    df["ABDOMINAL"] = pd.to_numeric(df["ABDOMINAL_RAW"], errors="coerce")
-    df["FLEXAO"] = pd.to_numeric(df["FLEXAO_RAW"], errors="coerce")
-    df["NATACAO_SEG"] = df["NATACAO_RAW"].apply(parse_time)
-    df["BARRA_TIPO"] = df["BARRA_RAW"].apply(classificar_barra_tipo)
-    df["BARRA_VALOR"] = df["BARRA_RAW"].apply(parse_time) # Para barra estática (tempo)
-    # Para barra dinâmica (reps), o valor já é numérico em FLEXAO_RAW, mas o parse_time pode ser usado se for string
-    # Vamos ajustar BARRA_VALOR para lidar com reps e tempo
-    df.loc[df["BARRA_TIPO"] == "DINAMICA", "BARRA_VALOR"] = pd.to_numeric(
-        df.loc[df["BARRA_TIPO"] == "DINAMICA", "BARRA_RAW"], errors="coerce"
-    )
-
-
-    # Calcular notas usando idade e sexo
-    df["NOTA_CORRIDA"] = df.apply(lambda row: nota_corrida(row["CORRIDA"], row["sexo"], row["IDADE"]), axis=1)
-    df["NOTA_ABDOMINAL"] = df.apply(lambda row: nota_abdominal(row["ABDOMINAL"], row["sexo"], row["IDADE"]), axis=1)
-    df["NOTA_FLEXAO"] = df.apply(lambda row: nota_flexao(row["FLEXAO"], row["sexo"], row["IDADE"]), axis=1)
-    df["NOTA_NATACAO"] = df.apply(lambda row: nota_natacao(row["NATACAO_SEG"], row["sexo"], row["IDADE"]), axis=1)
-
-    df["NOTA_BARRA"] = np.nan
-    mask_din = df["BARRA_TIPO"] == "DINAMICA"
-    mask_est = df["BARRA_TIPO"] == "ESTATICA"
-    df.loc[mask_din, "NOTA_BARRA"] = df.loc[mask_din].apply(
-        lambda row: nota_barra_din(row["BARRA_VALOR"], row["sexo"], row["IDADE"]), axis=1
-    )
-    df.loc[mask_est, "NOTA_BARRA"] = df.loc[mask_est].apply(
-        lambda row: nota_barra_est(row["BARRA_VALOR"], row["sexo"], row["IDADE"]), axis=1
-    )
-
-    # Média final
-    nota_cols = ["NOTA_CORRIDA", "NOTA_ABDOMINAL", "NOTA_FLEXAO", "NOTA_NATACAO", "NOTA_BARRA"]
-    df["MEDIA_FINAL"] = df[nota_cols].mean(axis=1)
-    df["CLASSIFICACAO"] = df["MEDIA_FINAL"].apply(classificar_media)
-
-    # Ponto fraco e forte
-    notas_map = {
-        "Corrida 12min": "NOTA_CORRIDA",
-        "Abdominal": "NOTA_ABDOMINAL",
-        "Flexão": "NOTA_FLEXAO",
-        "Natação 50m": "NOTA_NATACAO",
-        "Barra": "NOTA_BARRA",
-    }
-
-    def ponto_fraco(row):
-        vals = {k: float(row[v]) for k, v in notas_map.items() if pd.notna(row[v])}
-        return min(vals, key=vals.get) if vals else "—"
-
-    def ponto_forte(row):
-        vals = {k: float(row[v]) for k, v in notas_map.items() if pd.notna(row[v])}
-        return max(vals, key=vals.get) if vals else "—"
-
-    df["PONTO_FRACO"] = df.apply(ponto_fraco, axis=1)
-    df["PONTO_FORTE"] = df.apply(ponto_forte, axis=1)
-
-    return df, notas_map
-
-
-@st.cache_data
-def carregar_adaptado():
-    """Carrega e processa o TAF.csv — seção TAF Adaptado."""
-    df_raw = pd.read_csv("TAF.csv", header=None, encoding="utf-8-sig", dtype=str)
-
-    adapted_marker = None
-    adapted_header = None
-    for i in range(len(df_raw)):
-        cell = str(df_raw.iloc[i, 0]).strip()
-        if "TAF ADAPTADO" in cell:
-            adapted_marker = i
-        if cell == "ORD" and adapted_marker is not None:
-            adapted_header = i
+            tabela_faixa = TABELAS_PONTUACAO.get((sexo_char, min_age, max_age))
             break
 
-    if adapted_header is None:
-        return pd.DataFrame()
+    if tabela_faixa is None:
+        return np.nan
 
-    df = df_raw.iloc[adapted_header + 1:].copy()
-    df = df[df.iloc[:, 0].notna()]
-    df = df[pd.to_numeric(df.iloc[:, 0], errors="coerce").notna()]
+    col_exercicio = exercicio
+    if exercicio == "Barra":
+        if sexo_char == "M":
+            col_exercicio = "Barra_Din" if tipo_barra == "dinamica" else "Barra_Est"
+        else: # Mulheres fazem barra estática
+            col_exercicio = "Barra_Est"
 
-    cols = ["ORD", "POSTO_GRAD", "QUADRO", "NOME", "CAMINHADA", "ABDOMINAL",
-            "FLEXAO", "PRANCHA", "NATACAO", "BARRA_EST", "BARRA_DIN",
-            "CORRIDA", "PUXADOR_FRONTAL", "FLUTUACAO", "SUPINO", "COOPER"]
-    df = df.iloc[:, :min(16, df.shape[1])]
-    while len(df.columns) < 16:
-        df[f"_pad_{len(df.columns)}"] = np.nan
-    df.columns = cols[:len(df.columns)]
+    if col_exercicio not in tabela_faixa.columns:
+        return np.nan
 
-    df["NOME"] = df["NOME"].astype(str).str.strip().str.upper()
-    df["POSTO_GRAD"] = df["POSTO_GRAD"].astype(str).apply(normalizar_posto)
-    df["QUADRO"] = df["QUADRO"].astype(str).str.strip().str.upper()
-    df["PRESENTE"] = ~df["CAMINHADA"].astype(str).str.upper().str.contains(
-        "NÃO COMPARECEU", na=False
+    # Para corrida, flexão, abdominal (maior valor = maior nota)
+    if exercicio in ["Corrida", "Flexao", "Abdominal"]:
+        # Encontra a maior nota para o valor de desempenho ou superior
+        notas_possiveis = tabela_faixa[tabela_faixa[col_exercicio] <= valor_desempenho]["Nota"]
+        if not notas_possiveis.empty:
+            return notas_possiveis.max()
+        else: # Se o valor for menor que o mínimo da tabela, é 0
+            return 0.0
+    # Para natação, barra estática (menor tempo = maior nota)
+    elif exercicio in ["Natacao", "Barra_Est"]:
+        # Encontra a maior nota para o valor de desempenho ou inferior
+        notas_possiveis = tabela_faixa[tabela_faixa[col_exercicio] >= valor_desempenho]["Nota"]
+        if not notas_possiveis.empty:
+            return notas_possiveis.max()
+        else: # Se o tempo for maior que o máximo da tabela, é 0
+            return 0.0
+    # Para barra dinâmica (maior repetição = maior nota)
+    elif exercicio == "Barra" and tipo_barra == "dinamica":
+        notas_possiveis = tabela_faixa[tabela_faixa[col_exercicio] <= valor_desempenho]["Nota"]
+        if not notas_possiveis.empty:
+            return notas_possiveis.max()
+        else: # Se o valor for menor que o mínimo da tabela, é 0
+            return 0.0
+
+    return np.nan # Caso não encontre regra
+
+
+def classificar_media(media):
+    """Classifica a média final."""
+    if pd.isna(media):
+        return "Ausente"
+    if media >= 9.0:
+        return "Excelente"
+    if media >= 7.5:
+        return "Bom"
+    if media >= 6.0:
+        return "Regular"
+    return "Insuficiente"
+
+def identificar_ponto_fraco(row):
+    """Identifica a disciplina com a menor nota individual."""
+    notas = {
+        "Corrida": row["NOTA_CORRIDA"],
+        "Abdominal": row["NOTA_ABDOMINAL"],
+        "Flexão": row["NOTA_FLEXAO"],
+        "Natação": row["NOTA_NATACAO"],
+        "Barra": row["NOTA_BARRA"],
+    }
+    notas_validas = {k: v for k, v in notas.items() if pd.notna(v)}
+    if not notas_validas:
+        return np.nan
+    return min(notas_validas, key=notas_validas.get)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CARREGAR E PRÉ-PROCESSAR DADOS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@st.cache_data
+def load_data():
+    # Carregar TAF.csv
+    df_taf = pd.read_csv("TAF.csv", sep=";", encoding="latin1")
+    df_taf.columns = [c.upper() for c in df_taf.columns]
+    df_taf = df_taf.rename(columns={
+        "NOME COMPLETO": "NOME",
+        "POSTO/GRAD": "POSTO_GRAD",
+        "TAF ADAPTADO": "TAF_ADAPTADO",
+    })
+
+    # Carregar taf_indices.csv
+    df_indices = pd.read_csv("taf_indices.csv")
+    df_indices["data_taf"] = pd.to_datetime(df_indices["data_taf"])
+    df_indices = df_indices.rename(columns={"sexo_id": "sexo_raw"})
+    df_indices["sexo"] = df_indices["sexo_raw"].map({1: "Masculino", 2: "Feminino"})
+
+    # Merge dos dataframes
+    # Usar 'id' do df_indices para mapear para 'ID' do df_taf
+    # Assumindo que 'id' em df_indices corresponde a 'ID' em df_taf
+    df_merged = pd.merge(df_taf, df_indices, left_on="ID", right_on="id", how="left", suffixes=('_taf', '_indices'))
+
+    # Renomear colunas de desempenho para RAW para manter os valores originais
+    df_merged = df_merged.rename(columns={
+        "CORRIDA_taf": "CORRIDA_RAW",
+        "ABDOMINAL_taf": "ABDOMINAL_RAW",
+        "FLEXAO_taf": "FLEXAO_RAW",
+        "NATACAO_taf": "NATACAO_RAW",
+        "BARRA_taf": "BARRA_RAW",
+    })
+
+    # Preencher dados de sexo e data_taf (nascimento)
+    # Se 'sexo' ou 'data_taf' estiverem nulos após o merge, tentar preencher
+    # df_merged['sexo'] = df_merged['sexo'].fillna(df_merged['sexo_indices']) # Já feito pelo merge
+    # df_merged['data_taf'] = df_merged['data_taf'].fillna(df_merged['data_taf_indices']) # Já feito pelo merge
+
+    # Converter colunas para o tipo correto
+    df_merged["CORRIDA"] = pd.to_numeric(df_merged["CORRIDA_RAW"], errors="coerce")
+    df_merged["ABDOMINAL"] = pd.to_numeric(df_merged["ABDOMINAL_RAW"], errors="coerce")
+    df_merged["FLEXAO"] = pd.to_numeric(df_merged["FLEXAO_RAW"], errors="coerce")
+
+    # Converter tempos de natação e barra estática para segundos
+    df_merged["NATACAO_SEG"] = df_merged["NATACAO_RAW"].apply(parse_time)
+    df_merged["BARRA_EST_SEG"] = df_merged["BARRA_RAW"].apply(parse_time)
+
+    # Identificar tipo de barra e valor numérico
+    def get_barra_info(row):
+        val = str(row["BARRA_RAW"]).strip().upper()
+        if pd.isna(row["BARRA_RAW"]) or val in ["NÃO COMPARECEU", "NÃO", "NAN", "00:00"]:
+            return np.nan, np.nan, np.nan
+        if "'" in val or ":" in val: # Tempo (barra estática)
+            return "estatica", parse_time(val), parse_time(val)
+        try: # Repetições (barra dinâmica)
+            num_val = int(val)
+            return "dinamica", num_val, num_val
+        except ValueError:
+            return np.nan, np.nan, np.nan
+
+    df_merged[["BARRA_TIPO", "BARRA_VALOR", "BARRA_RAW_NUM"]] = df_merged.apply(
+        lambda row: pd.Series(get_barra_info(row)), axis=1
     )
-    return df
 
+    # Coluna PRESENTE
+    df_merged["PRESENTE"] = df_merged["SITUACAO"].str.upper() == "PRESENTE"
 
-# ══════════════════════════════════════════════════════════════════════════════
-# CARREGAR DADOS
-# ══════════════════════════════════════════════════════════════════════════════
-df_all, notas_map = carregar_dados()
-df_adaptado = carregar_adaptado()
+    # Separar TAF Adaptado
+    df_adaptado = df_merged[df_merged["TAF_ADAPTADO"] == "SIM"].copy()
+    df_normal = df_merged[df_merged["TAF_ADAPTADO"] == "NÃO"].copy()
 
-colunas_nota = list(notas_map.values())
-labels_nota = list(notas_map.keys())
-cats_radar = labels_nota + [labels_nota[0]]
+    return df_normal, df_adaptado
 
+df_normal, df_adaptado = load_data()
 
 # ══════════════════════════════════════════════════════════════════════════════
-# SIDEBAR
+# SIDEBAR E FILTROS
 # ══════════════════════════════════════════════════════════════════════════════
 with st.sidebar:
-    st.image(
-        "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/"
-        "Bras%C3%A3o_do_Corpo_de_Bombeiros_Militar_do_Amazonas.svg/"
-        "200px-Bras%C3%A3o_do_Corpo_de_Bombeiros_Militar_do_Amazonas.svg.png",
-        width=80,
-    )
-    st.markdown("## CBMAM · TAF 2026")
-    st.markdown("**Análise de Desempenho Físico**")
-    st.divider()
+    st.image("logo_cbmam.png", use_column_width=True) # Assumindo que você tem um logo
+    st.markdown("---")
 
     pagina = st.radio(
         "📌 Navegação",
         [
             "🏠 Visão Geral",
+            "📈 Projeção Anual", # Nova página de projeção
             "🪖 Por Posto/Graduação",
             "📋 Por Quadro",
             "👤 Ficha Individual",
-            "📈 Estatísticas",
+            "📊 Estatísticas",
             "♿ TAF Adaptado",
         ],
         label_visibility="collapsed",
@@ -506,60 +365,120 @@ with st.sidebar:
     st.divider()
 
     # Filtros globais
-    if pagina not in ["👤 Ficha Individual", "♿ TAF Adaptado"]:
+    if pagina not in ["👤 Ficha Individual", "♿ TAF Adaptado", "📈 Projeção Anual"]: # Projeção Anual não usa esses filtros diretamente
         st.markdown("**🔧 Filtros**")
 
-        # Filtro de Ano (placeholder, pois só temos um ano de dados no momento)
-        anos_disponiveis = sorted(df_all["data_taf"].dt.year.dropna().unique().tolist(), reverse=True)
-        if len(anos_disponiveis) > 1:
-            filtro_ano = st.multiselect("Ano do TAF", anos_disponiveis, default=anos_disponiveis)
-        else:
-            filtro_ano = anos_disponiveis # Se só tem um ano, seleciona ele automaticamente
-            st.info(f"Ano do TAF: {anos_disponiveis[0] if anos_disponiveis else 'N/A'}")
+        # Filtro de Ano (agora funcional para a data do TAF)
+        # Extrair anos únicos da coluna 'data_taf' do df_indices
+        anos_disponiveis = sorted(df_normal["data_taf"].dt.year.dropna().unique().tolist(), reverse=True)
+        if not anos_disponiveis:
+            anos_disponiveis = [datetime.now().year] # Ano atual se não houver dados
 
+        # Definir o ano padrão para 2026, se disponível, ou o mais recente
+        default_ano = [2026] if 2026 in anos_disponiveis else ([max(anos_disponiveis)] if anos_disponiveis else [])
+
+        filtro_ano = st.multiselect("Ano do TAF", anos_disponiveis, default=default_ano)
+        if not filtro_ano:
+            st.warning("Selecione pelo menos um ano para a análise principal.")
+            filtro_ano = default_ano # Garante que sempre haja um ano selecionado
 
         postos_disponiveis = sorted(
-            df_all[df_all["PRESENTE"]]["POSTO_GRAD"].unique().tolist(),
+            df_normal[df_normal["PRESENTE"]]["POSTO_GRAD"].unique().tolist(),
             key=lambda x: ordem_posto(x),
         )
         filtro_posto = st.multiselect("Posto/Graduação", postos_disponiveis,
                                        default=postos_disponiveis)
 
-        quadros_disponiveis = sorted(df_all[df_all["PRESENTE"]]["QUADRO"].unique().tolist())
+        quadros_disponiveis = sorted(df_normal[df_normal["PRESENTE"]]["QUADRO"].unique().tolist())
         filtro_quadro = st.multiselect("Quadro", quadros_disponiveis,
                                         default=quadros_disponiveis)
 
-        sexos_disponiveis = sorted(df_all["sexo"].dropna().unique().tolist())
+        sexos_disponiveis = sorted(df_normal["sexo"].dropna().unique().tolist())
         filtro_sexo = st.multiselect("Sexo", sexos_disponiveis, default=sexos_disponiveis)
 
         mostrar_ausentes = st.checkbox("Incluir ausentes", value=False)
 
         nota_minima = st.slider("Média mínima", 0.0, 10.0, 0.0, 0.1)
-    else:
-        filtro_ano = df_all["data_taf"].dt.year.dropna().unique().tolist()
-        filtro_posto = df_all["POSTO_GRAD"].unique().tolist()
-        filtro_quadro = df_all["QUADRO"].unique().tolist()
-        filtro_sexo = df_all["sexo"].dropna().unique().tolist()
+    else: # Para páginas que não usam filtros globais ou os gerenciam internamente
+        filtro_ano = df_normal["data_taf"].dt.year.dropna().unique().tolist()
+        filtro_posto = df_normal["POSTO_GRAD"].unique().tolist()
+        filtro_quadro = df_normal["QUADRO"].unique().tolist()
+        filtro_sexo = df_normal["sexo"].dropna().unique().tolist()
         mostrar_ausentes = False
         nota_minima = 0.0
 
     st.divider()
-    efetivo_total = len(df_all)
-    presentes_total = int(df_all["PRESENTE"].sum())
+    efetivo_total = len(df_normal)
+    presentes_total = int(df_normal["PRESENTE"].sum())
     st.markdown(
         f"<small>Efetivo: {efetivo_total} · Presentes: {presentes_total}<br>"
-        f"CBMAM · BM-6/EMG · 2026</small>",
+        f"CBMAM · BM-6/EMG · 2026</small>", # Ano fixo para o rodapé
         unsafe_allow_html=True,
     )
 
 
-# ── Filtrar dados ────────────────────────────────────────────────────────────
+# ── Processar dados com base nos filtros e calcular notas ────────────────────
+# Esta função será chamada para cada ano de referência (para filtros e projeções)
+def process_dataframe_for_year(df_input, ref_year):
+    df = df_input.copy()
+    data_referencia_calculo = datetime(ref_year, 1, 12) # Sempre 12 de janeiro do ano de referência
+
+    # Calcular a idade com base na data_taf (assumida como nascimento) e na data de referência
+    df["IDADE"] = df.apply(
+        lambda row: calcular_idade(row["data_taf"], data_referencia_calculo), axis=1
+    )
+
+    # Calcular notas para cada disciplina
+    df["NOTA_CORRIDA"] = df.apply(
+        lambda row: obter_nota(row["sexo"], row["IDADE"], "Corrida", row["CORRIDA"]), axis=1
+    )
+    df["NOTA_ABDOMINAL"] = df.apply(
+        lambda row: obter_nota(row["sexo"], row["IDADE"], "Abdominal", row["ABDOMINAL"]), axis=1
+    )
+    df["NOTA_FLEXAO"] = df.apply(
+        lambda row: obter_nota(row["sexo"], row["IDADE"], "Flexao", row["FLEXAO"]), axis=1
+    )
+    df["NOTA_NATACAO"] = df.apply(
+        lambda row: obter_nota(row["sexo"], row["IDADE"], "Natacao", row["NATACAO_SEG"]), axis=1
+    )
+    df["NOTA_BARRA"] = df.apply(
+        lambda row: obter_nota(row["sexo"], row["IDADE"], "Barra", row["BARRA_VALOR"], row["BARRA_TIPO"]), axis=1
+    )
+
+    # Média final
+    colunas_nota = ["NOTA_CORRIDA", "NOTA_ABDOMINAL", "NOTA_FLEXAO", "NOTA_NATACAO", "NOTA_BARRA"]
+    df["MEDIA_FINAL"] = df[colunas_nota].mean(axis=1)
+
+    # Classificação
+    df["CLASSIFICACAO"] = df["MEDIA_FINAL"].apply(classificar_media)
+
+    # Ponto fraco
+    df["PONTO_FRACO"] = df.apply(identificar_ponto_fraco, axis=1)
+
+    # Ordenação para ranking
+    df = df.sort_values("MEDIA_FINAL", ascending=False).reset_index(drop=True)
+    df["ORD"] = df.index + 1
+
+    return df
+
+# Processar o dataframe principal com o ano selecionado no filtro (ou o primeiro ano disponível)
+ano_para_processamento = filtro_ano[0] if filtro_ano else (datetime.now().year if not df_normal.empty else 2026)
+df_all = process_dataframe_for_year(df_normal, ano_para_processamento)
+
+
+# ── Aplicar filtros da sidebar ────────────────────────────────────────────────
 df_f = df_all.copy()
 if not mostrar_ausentes:
     df_f = df_f[df_f["PRESENTE"]]
 
-if filtro_ano:
-    df_f = df_f[df_f["data_taf"].dt.year.isin(filtro_ano)]
+# O filtro de ano já foi aplicado no process_dataframe_for_year para o df_all
+# Se quisermos filtrar por anos de TAF *diferentes* do ano de referência para a idade,
+# precisaríamos de uma coluna 'ANO_TAF_REALIZADO' e filtrar por ela aqui.
+# Por enquanto, 'df_all' já está processado para um único ano de referência de idade.
+# Se o usuário selecionar múltiplos anos no filtro_ano, o df_all ainda será baseado no primeiro.
+# Para uma análise multi-ano completa, o loop de processamento precisaria ser mais complexo.
+# Por simplicidade, para o dashboard principal, 'df_all' reflete o primeiro ano selecionado.
+# A seção de projeção anual lidará com múltiplos anos de referência de idade.
 
 df_f = df_f[df_f["POSTO_GRAD"].isin(filtro_posto)]
 df_f = df_f[df_f["QUADRO"].isin(filtro_quadro)]
@@ -569,6 +488,18 @@ df_f = df_f[df_f["MEDIA_FINAL"].fillna(0) >= nota_minima]
 # Dados apenas de presentes para cálculos
 df_presentes = df_f[df_f["PRESENTE"] & df_f["MEDIA_FINAL"].notna()]
 
+# Mapeamento de colunas de notas para labels para gráficos
+notas_map = {
+    "Corrida": "NOTA_CORRIDA",
+    "Abdominal": "NOTA_ABDOMINAL",
+    "Flexão": "NOTA_FLEXAO",
+    "Natação": "NOTA_NATACAO",
+    "Barra": "NOTA_BARRA",
+}
+colunas_nota = list(notas_map.values())
+labels_nota = list(notas_map.keys())
+cats_radar = labels_nota + [labels_nota[0]] # Para fechar o gráfico de radar
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PÁGINA: VISÃO GERAL
@@ -577,10 +508,10 @@ if pagina == "🏠 Visão Geral":
 
     col_txt, col_img = st.columns([2.2, 1])
     with col_txt:
-        st.markdown("""
+        st.markdown(f"""
         <h1 style="margin:0;font-size:2rem;">🔥 Dashboard TAF · CBMAM</h1>
         <p style="margin:6px 0 12px;color:#94a3b8;">
-          Corpo de Bombeiros Militar do Amazonas · Avaliação Física 2026
+          Corpo de Bombeiros Militar do Amazonas · Avaliação Física {ano_para_processamento}
         </p>
         """, unsafe_allow_html=True)
         st.markdown("""
@@ -590,9 +521,13 @@ if pagina == "🏠 Visão Geral":
         """)
 
     with col_img:
-        foto = Path("japura.enc")
-        if foto.exists():
-            st.image(str(foto), caption="CBMAM · 2026", use_container_width=True)
+        # Removendo a imagem 'japura.enc' pois não está disponível e pode causar erro
+        # foto = Path("japura.enc")
+        # if foto.exists():
+        #     st.image(str(foto), caption="CBMAM · 2026", use_container_width=True)
+        st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/Bras%C3%A3o_do_Corpo_de_Bombeiros_Militar_do_Amazonas.svg/1200px-Bras%C3%A3o_do_Corpo_de_Bombeiros_Militar_do_Amazonas.svg.png",
+                 caption=f"CBMAM · {ano_para_processamento}", use_container_width=True)
+
 
     st.divider()
 
@@ -872,6 +807,121 @@ if pagina == "🏠 Visão Geral":
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# PÁGINA: PROJEÇÃO ANUAL (NOVA)
+# ══════════════════════════════════════════════════════════════════════════════
+elif pagina == "📈 Projeção Anual":
+    st.markdown("""
+    <h1 style="margin:0;font-size:2rem;">📈 Projeção Anual de Desempenho</h1>
+    <p style="margin:6px 0 12px;color:#94a3b8;">
+      Visualize a idade e as notas projetadas para os anos de 2024, 2025 e 2026.
+    </p>
+    """, unsafe_allow_html=True)
+    st.divider()
+
+    # Selecionar militar para projeção
+    st.markdown("**🔎 Selecionar Militar para Projeção**")
+    busca_proj = st.text_input("Buscar por nome (Projeção)", placeholder="Digite parte do nome...")
+
+    df_proj_base = df_normal[df_normal["PRESENTE"]].copy()
+    lista_nomes_proj = df_proj_base["NOME"].tolist()
+    if busca_proj:
+        lista_nomes_proj = [n for n in lista_nomes_proj if busca_proj.upper() in n]
+
+    if lista_nomes_proj:
+        militar_sel_proj = st.selectbox("Militar para Projeção", lista_nomes_proj)
+    else:
+        st.warning("Nenhum militar encontrado para projeção.")
+        militar_sel_proj = df_proj_base["NOME"].iloc[0] if len(df_proj_base) > 0 else None
+
+    if militar_sel_proj is None:
+        st.warning("Nenhum militar disponível para projeção.")
+    else:
+        st.divider()
+        st.markdown(f'<p class="section-title">👤 Ficha de Projeção: {militar_sel_proj}</p>',
+                    unsafe_allow_html=True)
+
+        militar_data_original = df_normal[df_normal["NOME"] == militar_sel_proj].iloc[0]
+
+        # Anos para projetar
+        anos_projecao = [2024, 2025, 2026]
+        resultados_projecao = []
+
+        for ano in anos_projecao:
+            df_temp_proj = process_dataframe_for_year(militar_data_original.to_frame().T, ano)
+            row_proj = df_temp_proj.iloc[0]
+            resultados_projecao.append({
+                "Ano": ano,
+                "Idade": int(row_proj["IDADE"]) if pd.notna(row_proj["IDADE"]) else "N/A",
+                "Corrida": f"{row_proj['NOTA_CORRIDA']:.1f}",
+                "Abdominal": f"{row_proj['NOTA_ABDOMINAL']:.1f}",
+                "Flexão": f"{row_proj['NOTA_FLEXAO']:.1f}",
+                "Natação": f"{row_proj['NOTA_NATACAO']:.1f}",
+                "Barra": f"{row_proj['NOTA_BARRA']:.1f}",
+                "Média Final": f"{row_proj['MEDIA_FINAL']:.1f}",
+                "Classificação": row_proj['CLASSIFICACAO'],
+            })
+
+        df_projecao = pd.DataFrame(resultados_projecao)
+        st.dataframe(df_projecao, use_container_width=True, hide_index=True)
+
+        st.info(
+            "ℹ️ Esta tabela mostra a idade e as notas que o militar teria se realizasse o TAF "
+            "em 12 de janeiro de cada ano, mantendo o mesmo desempenho bruto (metros, repetições, tempo)."
+            "As notas mudam devido às faixas etárias das tabelas de pontuação."
+        )
+
+        # Gráfico de linha para a média final ao longo dos anos
+        st.markdown('<p class="section-title">📈 Média Final Projetada por Ano</p>',
+                    unsafe_allow_html=True)
+
+        fig_proj_media = px.line(
+            df_projecao, x="Ano", y="Média Final",
+            markers=True, text="Média Final",
+            title=f"Média Final Projetada para {militar_sel_proj}",
+            color_discrete_sequence=["#3b82f6"],
+        )
+        fig_proj_media.update_traces(textposition="top center")
+        fig_proj_media.update_layout(
+            **DARK, height=400,
+            xaxis=dict(tickmode="linear", dtick=1, **GRID),
+            yaxis=dict(range=[0, 10], **GRID),
+            margin=dict(t=50, b=20),
+        )
+        st.plotly_chart(fig_proj_media, use_container_width=True)
+
+        # Gráfico de radar para comparar o perfil de notas em cada ano
+        st.markdown('<p class="section-title">🕸️ Perfil de Notas por Ano</p>',
+                    unsafe_allow_html=True)
+
+        fig_radar_proj = go.Figure()
+        cores_proj = ["#22c55e", "#3b82f6", "#ef4444"] # Cores para 2024, 2025, 2026
+
+        for i, ano in enumerate(anos_projecao):
+            row_proj = df_projecao[df_projecao["Ano"] == ano].iloc[0]
+            notas_ano = [float(row_proj[disc]) for disc in labels_nota]
+            fig_radar_proj.add_trace(go.Scatterpolar(
+                r=notas_ano + [notas_ano[0]], theta=cats_radar,
+                fill="toself", name=f"Ano {ano} ({row_proj['Idade']} anos)",
+                line_color=cores_proj[i % len(cores_proj)],
+                fillcolor=f"rgba({int(cores_proj[i % len(cores_proj)][1:3], 16)},{int(cores_proj[i % len(cores_proj)][3:5], 16)},{int(cores_proj[i % len(cores_proj)][5:7], 16)},.15)",
+            ))
+
+        fig_radar_proj.update_layout(
+            polar=dict(
+                bgcolor="rgba(0,0,0,0)",
+                radialaxis=dict(visible=True, range=[0, 10],
+                                gridcolor="rgba(255,255,255,.12)",
+                                tickfont_color="#94a3b8"),
+                angularaxis=dict(gridcolor="rgba(255,255,255,.12)"),
+            ),
+            **DARK,
+            legend=dict(orientation="h", yanchor="bottom", y=-0.25),
+            height=450, title=f"Comparativo de Notas por Ano para {militar_sel_proj}",
+        )
+        st.plotly_chart(fig_radar_proj, use_container_width=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # PÁGINA: POR POSTO/GRADUAÇÃO
 # ══════════════════════════════════════════════════════════════════════════════
 elif pagina == "🪖 Por Posto/Graduação":
@@ -1021,7 +1071,7 @@ elif pagina == "🪖 Por Posto/Graduação":
             labels={"POSTO_GRAD": "Posto/Graduação"},
             title="Percentual de ausência por posto",
         )
-fig_aus.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+        fig_aus.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
         fig_aus.update_layout(
             **DARK, height=350, coloraxis_showscale=False,
             xaxis=dict(**GRID), yaxis=dict(**GRID),
@@ -1253,7 +1303,7 @@ elif pagina == "👤 Ficha Individual":
             <div>
               <div style="font-size:1.8rem;font-weight:800;">🪖 {nome_curto}</div>
               <div style="color:#94a3b8;margin-top:4px;">
-                {posto_ind} · {quadro_ind} · {sexo_ind} · {idade_ind} anos · CBMAM · 2026
+                {posto_ind} · {quadro_ind} · {sexo_ind} · {idade_ind} anos · CBMAM · {ano_para_processamento}
               </div>
             </div>
             <div style="display:flex;gap:12px;flex-wrap:wrap;">
@@ -1466,7 +1516,7 @@ elif pagina == "👤 Ficha Individual":
 # ══════════════════════════════════════════════════════════════════════════════
 # PÁGINA: ESTATÍSTICAS
 # ══════════════════════════════════════════════════════════════════════════════
-elif pagina == "📈 Estatísticas":
+elif pagina == "📊 Estatísticas":
     st.markdown("""
     <h1 style="margin:0;font-size:2rem;">📈 Análise Estatística</h1>
     <p style="margin:6px 0 12px;color:#94a3b8;">
